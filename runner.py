@@ -2,7 +2,7 @@ import os
 import time 
 import random 
 import sys 
-
+import hashlib
 
 def run(args):
     file_count = args.get('file_count') or 1 
@@ -12,15 +12,27 @@ def run(args):
 
     start_time = time.time() 
     for _ in range(0, file_count):
-        make_random_file(file_size)
+        cur_name = make_random_file(file_size)
+        cur_hash = make_file_md5(cur_name)
+        print('File %s ||| MD5 %s'%(cur_name, cur_hash))
     sleep_until(start_time + secs_to_sleep)
 
 def make_random_file(size, name = None):
     if name == None: 
-        name = 'outfile_' + [chr( ord('a') + ord(a)% 26) for a in os.urandom(10)] + '.txt'
+        name = 'outfile_' + ''.join([chr( ord('a') + ord(a)% 26) for a in os.urandom(10)]) + '.txt'
     fh = open(name, 'w')
     fh.write(os.urandom(size))
     fh.close()
+    return name
+
+def make_file_md5(name):
+    fh = open(name, 'r')
+    data = fh.read() 
+    fh.close()
+    hasher = hashlib.md5()
+    hasher.update(data)
+    hsh = hasher.hexdigest()
+    return hsh
 
 def sleep_until(end_time):
     cur_time = time.time()
@@ -46,7 +58,7 @@ def parse_args(args):
 
 def size_to_bytes(size_with_suffix):
     size_with_suffix = size_with_suffix.strip()
-    num_part = str(filter(lambda dig : dig.isdigit(), size_with_suffix))
+    num_part = ''.join(filter(lambda dig : dig.isdigit(), size_with_suffix))
     suffix_part = size_with_suffix[len(num_part):]
     if len(suffix_part) == 0:
         return int(num_part)
