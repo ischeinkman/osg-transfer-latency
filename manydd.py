@@ -10,14 +10,15 @@ to report the total achievable write speed.
 
 import subprocess 
 
-N = 30
+N = 15
 
 print('Starting speed test.')
 
 cmd_format = "uptime && dd if=/dev/zero of=/data%d/tmp/file_%d.bin count=500M iflag=count_bytes && uptime"
+zero_case = "uptime && dd if=/dev/zero of=/home/ilan/tmp/file_%d.bin count=500M iflag=count_bytes && uptime"
 ddthreads = []
 for idx in range(0, N):
-    cmd = cmd_format%(1 + idx%2, idx)
+    cmd = zero_case%(idx) if idx %3 == 0 else cmd_format%( idx%3, idx)
     ddthreads.append(subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True))
 
 out = []
