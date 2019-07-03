@@ -13,11 +13,15 @@ def run(args):
     file_size = args['file_size']
 
     start_time = time.time() 
+    end_time = start_time + secs_to_sleep
+    print('StartTime: %.4f'%(start_time))
     for _ in range(0, file_count):
         cur_name = make_random_file(file_size)
         cur_hash = make_file_md5(cur_name)
-        print('File %s ||| MD5 %s'%(cur_name, cur_hash))
-    sleep_until(start_time + secs_to_sleep)
+        print('File %s ||| MD5 %s\n'%(cur_name, cur_hash))
+    print('EndFileTime: %.4f'%(time.time()))
+    print('EndTimeGoal: %.4f'%(end_time))
+    sleep_until(end_time)
 
 def make_random_file(size, name = None):
     if name == None: 
