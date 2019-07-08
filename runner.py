@@ -12,7 +12,10 @@ def run(args):
     secs_to_sleep = args['time'] + (random.random() - 0.5) * sleep_range
     file_size = args['file_size']
 
-    start_time = args.get('qdate') or time.time()
+    start_time = args.get('start_time')
+    if start_time is None: 
+        print('Using default start.')
+        start_time = time.time()
     end_time = start_time + secs_to_sleep
     assert(end_time > time.time()) 
     print('StartTime: %.4f'%(start_time))
@@ -60,6 +63,8 @@ def parse_args(args):
             retval['time_range'] = int(cur_val)
         elif cur_key == '--filecount':
             retval['file_count'] = int(cur_val)
+        elif cur_key == '--qdate':
+            retval['start_time'] = int(cur_val)
         idx += 1
     return retval
 
