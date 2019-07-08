@@ -195,8 +195,20 @@ def combine_data_by_job(conlog_data, xfer_data):
     for ent in conlog_data:
         entkey = ent['Cluster'] + '.' + ent['Proc']
         dt = retval[entkey]
+        if not (len(dt['xfer']) > 0 or dt['conlog'][-1]['MyType']  == 'JobAbortedEvent'):
+            print('Bad job %s ended with event %s'%(entkey, dt['conlog'][-1]['MyType']))
         assert(len(dt['xfer']) > 0 or dt['conlog'][-1]['MyType']  == 'JobAbortedEvent')
     return retval
+
+def summarize_aborts(comb_data):
+    retval = {'aborts' : []}
+    for key in comb_data:
+        if len(comb_data[key]['xfer']) == 0:
+            retval['aborts'].append(key)
+        else: 
+            retval[key] = comb_data[key]
+    return retval 
+
 def jid_sorter(a, b):
     aj_raw, ac_raw = a.split('.')
     aj = int(aj_raw)
@@ -256,14 +268,20 @@ def comb_run(flags, noflag):
     add_range_info(xfer_data)
     add_speed_info(xfer_data)
 
-    comb_data = combine_data_by_job(conlog_data, xfer_data)
+    comb_data = summarize_aborts(combine_data_by_job(conlog_data, xfer_data))
 
     for key in comb_data:
+        if key == 'aborts':
+            continue
         print('==============\n\n%s:\n\n'%(key))
         conlog_cont = '\n\t\t'.join(map(str, comb_data[key]['conlog']))
-        print('\tconlog:\n\t\t%s\n\n'%(conlog_cont))
+        print('\tconlog:\n\t\t%s\n\n'%(str(conlog_cont)))
         xfer_cont = '\n\t\t'.join(map(str, comb_data[key]['xfer']))
-        print('\txfer:\n\t\t%s\n\n'%(xfer_cont))
+        print('\txfer:\n\t\t%s\n\n'%(str(xfer_cont)))
+
+    
+    print('==============\n\n%s (%d):\n\n'%('aborts', len(comb_data['aborts'])))
+    print('%s\n\n'%(str(comb_data['aborts'])))
 
 
 if __name__ == "__main__":
