@@ -17,7 +17,7 @@ def run(args):
         print('Using default start.')
         start_time = time.time()
     end_time = start_time + secs_to_sleep
-    assert(end_time > time.time()) 
+    #assert(end_time > time.time()) 
     print('StartTime: %.4f'%(start_time))
     for _ in range(0, file_count):
         cur_name = make_random_file(file_size)
