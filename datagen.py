@@ -101,13 +101,7 @@ def speed_categorize(rows):
     return retval 
 
 def not_initial_send(entry):
-    if entry['kind'].lower()[0] != 'u':
-        return True 
-    elif entry['povsource'] != 'client':
-        return True 
-    else: 
-        return False 
-    return not(entry['povsource'] == 'client' and entry['kind'].lower()[0] == 'u')
+    return not (entry['povsource'] == 'client' and entry['kind'] == 'Upload')
 
 
 def make_file_md5(name):
@@ -197,7 +191,6 @@ def combine_data_by_job(conlog_data, xfer_data):
         dt = retval[entkey]
         if not (len(dt['xfer']) > 0 or dt['conlog'][-1]['MyType']  == 'JobAbortedEvent'):
             print('Bad job %s ended with event %s'%(entkey, dt['conlog'][-1]['MyType']))
-        assert(len(dt['xfer']) > 0 or dt['conlog'][-1]['MyType']  == 'JobAbortedEvent')
     return retval
 
 def summarize_aborts(comb_data):
@@ -255,11 +248,9 @@ def con_log_run(flags, noflag):
     for ent in tv: 
         print(ent)
 
-def comb_run(flags, noflag):
-    xfer_fname = flags['xfer']
+def make_combdata(xfer_fname, conlog_fname):
     xfer_data =filter(not_initial_send, parse_xfer_log(xfer_fname))
     
-    conlog_fname = flags['conlog']
     conlog_raw_data = ''
     with open(conlog_fname, 'r') as fh:
         conlog_raw_data = fh.read()
@@ -268,8 +259,11 @@ def comb_run(flags, noflag):
     add_range_info(xfer_data)
     add_speed_info(xfer_data)
 
-    comb_data = summarize_aborts(combine_data_by_job(conlog_data, xfer_data))
+    return summarize_aborts(combine_data_by_job(conlog_data, xfer_data))
 
+
+def comb_run(flags, noflag):
+    comb_data = make_combdata(flags['xfer'], flags['conlog'])
     for key in comb_data:
         if key == 'aborts':
             continue
@@ -278,15 +272,60 @@ def comb_run(flags, noflag):
         print('\tconlog:\n\t\t%s\n\n'%(str(conlog_cont)))
         xfer_cont = '\n\t\t'.join(map(str, comb_data[key]['xfer']))
         print('\txfer:\n\t\t%s\n\n'%(str(xfer_cont)))
-
-    
     print('==============\n\n%s (%d):\n\n'%('aborts', len(comb_data['aborts'])))
     print('%s\n\n'%(str(comb_data['aborts'])))
+    return comb_data
+
+def timecheck_run(flags, noflag):
+    goal_end = float(flags['endgoal'])
+    comb_data = make_combdata(flags['xfer'], flags['conlog'])
+    retval = {
+        'JobId' : [],
+        'PeerSeconds' : [],
+        'PeerDiff' : [],
+        'ClientSeconds' : [],
+        'ClientDiff' : [], 
+        'ValidSource' : [],
+        'TermFullDiff' : [],
+    }
+
+    for j in comb_data:
+        if j == 'aborts':
+            continue
+        JobId = j 
+        if not type({}) == type(comb_data[j]):
+            print('Bad j: %s => %s'%(str(j), str(type(comb_data[j]))))
+        peerent = [ent for ent in comb_data[j]['xfer'] if ent['povsource'] == 'peer'][0]
+        PeerSeconds = float(peerent['seconds'])
+        PeerDiff = peerent['endtime'] - goal_end
+        clientent = [ent for ent in comb_data[j]['xfer'] if not ent['povsource'] == 'peer'][0]
+        ClientSeconds = float(clientent['seconds'])
+        ClientDiff = clientent['endtime'] - goal_end
+        ValidSource = ''
+        if clientent['starttime'] - goal_end > peerent['starttime'] - goal_end:
+            ValidSource = 'peer'
+        else: 
+            ValidSource = 'client'
+        termed = comb_data[j]['conlog'][-1]
+        TermFullSeconds = termed['unixtime'] - goal_end
+        retval['JobId'].append(JobId)
+        retval['PeerSeconds'].append(PeerSeconds)
+        retval['PeerDiff'].append(PeerDiff)
+        retval['ClientDiff'].append(ClientDiff)
+        retval['ClientSeconds'].append(ClientSeconds)
+        retval['ValidSource'].append(ValidSource)
+        retval['TermFullDiff'].append(TermFullSeconds)
+    print(retval)
+    return retval
+        
+
 
 
 if __name__ == "__main__":
     flags, noflag = argparser(sys.argv[1:])
-    if 'xfer' in flags and 'conlog' in flags:
+    if 'xfer' in flags and 'conlog' in flags and 'endgoal' in flags:
+        timecheck_run(flags, noflag)
+    elif 'xfer' in flags and 'conlog' in flags:
         comb_run(flags, noflag)
     elif 'xfer' in flags:
         xfer_log_run(flags, noflag)
