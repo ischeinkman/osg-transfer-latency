@@ -355,6 +355,8 @@ def md5_run(flags, noflag):
             print(len(initial_dirs), conc)
         assert(len(initial_dirs) == conc)
         for jnum in range(0, conc):
+            if not (conc, run) in runs_map:
+                runs_map[(conc, run)] = {}
             if not jnum in runs_map[(conc, run)]:
                 runs_map[(conc, run)][jnum] = {
                     'dir' : initial_dirs[jnum]
