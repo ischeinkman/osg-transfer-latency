@@ -359,7 +359,7 @@ def md5_run(flags, noflag):
                 runs_map[(conc, run)][jnum] = {
                     'dir' : initial_dirs[jnum]
                 }
-    outfl = open(wd.rstrip('/') + '/md5_check.csv', 'w')
+    outfl = open(wd.rstrip('/') + '/md5_check.csv', 'w', 1)
     for concrun in runs_map:
         conc, run = concrun
         for jnum in runs_map[concrun]:
@@ -367,7 +367,8 @@ def md5_run(flags, noflag):
             matches, misses = md5_check(out_dir)
             runs_map[concrun][jnum]['success'] = matches 
             runs_map[concrun][jnum]['fails'] = misses
-            outfl.write('"{}.{}.{}",{}'.format(conc, run, jnum, len(misses)))
+            outfl.write('"{}.{}.{}",{}\n'.format(conc, run, jnum, len(misses)))
+            outfl.flush()
     outfl.flush()
 
 if __name__ == "__main__":
