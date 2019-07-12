@@ -125,18 +125,18 @@ def md5_check(outdir):
         if not ln.startswith('File ') or not ' ||| MD5 ' in ln: 
             continue 
         (fname, expectedhash) = ln[len('File '):].split(' ||| MD5 ', 1)
-        hashes[fname] = expectedhash
+        hashes[fname] = expectedhash.strip('\n')
     
     outfiles = [fl for fl in dirlist if fl in hashes]
     assert(len(outfiles) == len(hashes))
 
-    misses = 0
+    misses = {}
     matches = 0
     for fl in outfiles:
         actual_hash = make_file_md5(outdir + '/' + fl)
         expected_hash = hashes[fl]
         if actual_hash != expected_hash:
-            misses += 1
+            misses[fl] = (expected_hash, actual_hash)
         else:
             matches += 1
     return (matches, misses)
@@ -317,9 +317,58 @@ def timecheck_run(flags, noflag):
         retval['TermFullDiff'].append(TermFullSeconds)
     print(retval)
     return retval
-        
 
-
+def md5_run(flags, noflag):
+    wd = noflag[-1]
+    in_directory = ([d for d in os.listdir(wd) if d.startswith('concurrency_') and os.path.isdir(wd.rstrip('/') + '/' + d)])
+    runs_map = {}
+    for rdir in in_directory:
+        _, conc, _, run = rdir.strip().strip('/').split('_')
+        conc = int(conc)
+        run = int(run) 
+        runs_map[(conc, run)] = {}
+        rdir_full = wd.rstrip('/') + '/' + rdir
+        jobdirs = os.listdir(rdir_full)
+        for jd in jobdirs: 
+            if not jd.startswith('job'):
+                continue 
+            jobidx = int(jd[len('job') : ])
+            jd_full = rdir_full.rstrip('/') + '/' + jd 
+            runs_map[(conc, run)][jobidx] = {
+                'dir' : jd_full,
+            }
+    submit_files = [fl for fl in os.listdir(wd) if fl.endswith('.condor')]
+    for subfl in submit_files: 
+        conc, run = subfl.strip().split('concurrency_')[1:][0].split('_submit.condor')[0].split('_run_')
+        conc = int(conc)
+        run = int(run)
+        data = ""
+        with open(wd.rstrip('/') + '/' + subfl, 'r') as fh: 
+            data = fh.read()
+        initial_dirs = []
+        for ln in data.splitlines():
+            if not ln.startswith('Initialdir'):
+                continue 
+            dirpart = ln.split(' = ')[-1].strip()
+            initial_dirs.append(dirpart)
+        if len(initial_dirs) != conc: 
+            print(len(initial_dirs), conc)
+        assert(len(initial_dirs) == conc)
+        for jnum in range(0, conc):
+            if not jnum in runs_map[(conc, run)]:
+                runs_map[(conc, run)][jnum] = {
+                    'dir' : initial_dirs[jnum]
+                }
+    outfl = open(wd.rstrip('/') + '/md5_check.csv', 'w')
+    for concrun in runs_map:
+        conc, run = concrun
+        for jnum in runs_map[concrun]:
+            out_dir = runs_map[concrun][jnum]['dir']
+            matches, misses = md5_check(out_dir)
+            runs_map[concrun][jnum]['success'] = matches 
+            runs_map[concrun][jnum]['fails'] = misses
+            outfl.write('"{}.{}.{}",{}'.format(conc, run, jnum, len(misses)))
+    outfl.flush()
 
 if __name__ == "__main__":
     flags, noflag = argparser(sys.argv[1:])
@@ -331,3 +380,5 @@ if __name__ == "__main__":
         xfer_log_run(flags, noflag)
     elif 'conlog' in flags:
         con_log_run(flags, noflag)
+    elif 'md5' in flags: 
+        md5_run(flags, noflag)
