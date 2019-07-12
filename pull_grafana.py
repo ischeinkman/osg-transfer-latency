@@ -1,15 +1,15 @@
 #%%
 import sys
-import requests
-
+import urllib2
+import time 
 #%%
-_MILLIS = 1.0
+_MILLIS = 0.001
 _SECONDS = 1000.0 * _MILLIS
 _MINUTES = 60.0 * _SECONDS
 _HOURS = 60.0 * _MINUTES
 
 _DEFAULT_PRE_RUN_OFFSET = 5.0 * _MINUTES
-_DEFAULT_POST_RUN_OFFSET = 5.0 * _MINUTES
+_DEFAULT_POST_RUN_OFFSET = 10.0 * _MINUTES
 
 
 #%%
@@ -46,14 +46,39 @@ def filter_extras(itms):
     return retval
 def get_data(start_epoch_seconds, end_epoch_seconds):
     url = build_query_url(start_epoch_seconds, end_epoch_seconds)
-    outpt = requests.get(url, verify=False )
-    parsed = parse_output(outpt.content)
+    outpt = urllib2.urlopen(url )
+    parsed = parse_output(outpt.read())
     filt = filter_extras(parsed)
     return filt 
 
 
+def run_as_postscript():
+    wd = sys.argv[-1]
+    logpath = wd.rstrip('/') + '/glideTester.log'
+    logdata = ''
+    with open(logpath, 'r') as fh:
+        logdata = fh.read()
+    relevants = [ln for ln in logdata.splitlines() if ln.endswith('submitted') or ln.endswith('Done')]
+    TIME_FORMAT = '%a %b %d %H:%M:%S %Y'
+    parsed = []
+    for ln in relevants:
+        splitidx = ln.index('2019') + 4
+        timestamp_raw = ln[:splitidx]
+        timestamp_obj = time.strptime(timestamp_raw, TIME_FORMAT)
+        unixtime = time.mktime(timestamp_obj)
+        kind = 'd' if ln.endswith('Done') else 's' if ln.endswith('submitted') else 'ERR'
+        parsed.append((unixtime, kind))
+    parsed.sort(key = lambda ent: ent[0])
+    parsed.append([int(time.time()), 'd'])
+    run_start = parsed[0][0]
+    run_end = parsed[1][0]
+    graf_data = get_data(run_start - _DEFAULT_PRE_RUN_OFFSET, run_end + _DEFAULT_POST_RUN_OFFSET)
+
+    outfl = open(wd.rstrip('/') + '/pull_grafana_out.txt', 'w')
+    outfl.write('\n'.join(map(str, graf_data)) + '\n')
+    outfl.flush()
+
 
 #%%
 if __name__ == "__main__":
-    import time
-    print(get_data(int(time.time()) - 24 * _HOURS/_SECONDS, int(time.time())))
+    run_as_postscript()
