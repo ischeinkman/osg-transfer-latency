@@ -128,18 +128,18 @@ def md5_check(outdir):
         hashes[fname] = expectedhash.strip('\n')
     
     outfiles = [fl for fl in dirlist if fl in hashes]
+    if not len(outfiles) == len(hashes):
+        print('ERROR: mismatch in MD5-checking file {}: expected {} hashes but found {} out files. '.format(outdir, len(hashes), len(outfiles)))
+        print('Hashes: {}'.format(hashes))
+        print('Outfiles: {}'.format(outfiles))
     assert(len(outfiles) == len(hashes))
 
-    misses = {}
-    matches = 0
-    for fl in outfiles:
-        actual_hash = make_file_md5(outdir + '/' + fl)
+    data = {}
+    for fl in hashes:
         expected_hash = hashes[fl]
-        if actual_hash != expected_hash:
-            misses[fl] = (expected_hash, actual_hash)
-        else:
-            matches += 1
-    return (matches, misses)
+        actual_hash = make_file_md5(outdir + '/' + fl)
+        data[fl] = {'expected' : expected_hash, 'actual' : actual_hash}
+    return data
 
 
 def parse_conlog(raw_data):
@@ -361,17 +361,25 @@ def md5_run(flags, noflag):
                 runs_map[(conc, run)][jnum] = {
                     'dir' : initial_dirs[jnum]
                 }
-    outfl = open(wd.rstrip('/') + '/md5_check.csv', 'w', 1)
+    outraw = open(wd.rstrip('/') + '/md5_check.csv', 'w', 1)
     for concrun in runs_map:
         conc, run = concrun
         for jnum in runs_map[concrun]:
             out_dir = runs_map[concrun][jnum]['dir']
-            matches, misses = md5_check(out_dir)
-            runs_map[concrun][jnum]['success'] = matches 
-            runs_map[concrun][jnum]['fails'] = misses
-            outfl.write('"{}.{}.{}",{}\n'.format(conc, run, jnum, len(misses)))
-            outfl.flush()
-    outfl.flush()
+            raw = md5_check(out_dir)
+            for fl in raw: 
+                outraw.write("{}.{}.{}, \"{}\", {}, {}\n".format(conc, run, jnum, fl, raw[fl]['expected'], raw[fl]['actual']))
+                outraw.flush()
+    outraw.flush()
+    for concrun in runs_map:
+        conc, run = concrun
+        for jnum in runs_map[concrun]:
+            out_dir = runs_map[concrun][jnum]['dir']
+            raw = md5_check(out_dir)
+            for fl in raw: 
+                pt = out_dir.rstrip('/') + '/' + fl
+                if os.path.exists(pt):
+                    os.unlink(out_dir + '/' + fl)
 
 if __name__ == "__main__":
     flags, noflag = argparser(sys.argv[1:])
