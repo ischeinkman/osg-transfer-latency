@@ -48,7 +48,7 @@ def sleep_until(end_time):
     cur_time = time.time()
     while cur_time < end_time:
         cur_time = time.time()
-
+        time.sleep(1.0)
 def parse_args(args):
     retval = {}
     idx = 0
