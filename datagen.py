@@ -116,6 +116,8 @@ def make_file_md5(name):
 def md5_check(outdir):
     dirlist = os.listdir(outdir)
     stdout_list = [outdir + '/' + itm for itm in dirlist if itm.endswith('.out')]
+    if len(stdout_list) == 0:
+        return {}
     assert(len(stdout_list) == 1)
     stdout_fh = open(stdout_list[0], 'r')
 
@@ -132,7 +134,7 @@ def md5_check(outdir):
         print('ERROR: mismatch in MD5-checking file {}: expected {} hashes but found {} out files. '.format(outdir, len(hashes), len(outfiles)))
         print('Hashes: {}'.format(hashes))
         print('Outfiles: {}'.format(outfiles))
-    assert(len(outfiles) == len(hashes))
+        return {}
 
     data = {}
     for fl in hashes:
@@ -197,7 +199,7 @@ def summarize_aborts(comb_data):
     retval = {'aborts' : []}
     for key in comb_data:
         if len(comb_data[key]['xfer']) == 0:
-            retval['aborts'].append(key)
+            retval['aborts'].append((key, comb_data[key]['conlog']))
         else: 
             retval[key] = comb_data[key]
     return retval 
@@ -273,7 +275,8 @@ def comb_run(flags, noflag):
         xfer_cont = '\n\t\t'.join(map(str, comb_data[key]['xfer']))
         print('\txfer:\n\t\t%s\n\n'%(str(xfer_cont)))
     print('==============\n\n%s (%d):\n\n'%('aborts', len(comb_data['aborts'])))
-    print('%s\n\n'%(str(comb_data['aborts'])))
+    for abrt in comb_data['aborts']:
+        print(str(abrt))
     return comb_data
 
 def timecheck_run(flags, noflag):
@@ -361,12 +364,16 @@ def md5_run(flags, noflag):
                 runs_map[(conc, run)][jnum] = {
                     'dir' : initial_dirs[jnum]
                 }
-    outraw = open(wd.rstrip('/') + '/md5_check.csv', 'w', 1)
+    outfail = open(wd.rstrip('/') + '/jobfails.csv', 'w')
+    outraw = open(wd.rstrip('/') + '/md5_check.csv', 'a', 1)
     for concrun in runs_map:
         conc, run = concrun
         for jnum in runs_map[concrun]:
             out_dir = runs_map[concrun][jnum]['dir']
             raw = md5_check(out_dir)
+            if len(raw) == 0:
+                outfail.write('{}.{}.{}\n'.format(conc, run, jnum))
+                outfail.flush()
             for fl in raw: 
                 outraw.write("{}.{}.{}, \"{}\", {}, {}\n".format(conc, run, jnum, fl, raw[fl]['expected'], raw[fl]['actual']))
                 outraw.flush()
