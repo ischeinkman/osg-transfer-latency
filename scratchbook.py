@@ -75,12 +75,15 @@ pairs.difference(did)
 
 #%%
 dt2 = '''
-248220.0,4.0,400.0,40.0,0,0
-328500.0,4.0,400.0,30.0,6,0
-260140.0,4.0,400.0,50.0,4,0
-215510.0,4.0,400.0,90.0,1,0
-160540.0,4.0,400.0,80.0,3,0
-160180.0,4.0,400.0,80.0,3,0
+101500.0,4.0,400.0,50.0,1,0,1,1, 20190801121054
+65160.0,4.0,400.0,150.0,56,0,58,236, 20190801133259
+119150.0,4.0,400.0,90.0,3,0,1,1, 20190801154631
+63170.0,4.0,400.0,70.0,64,0,60,193, 20190801171746
+387560.0,4.0,400.0,70.0,48,0,46,218, 20190802123735
+332900.0,4.0,400.0,50.0,33,0,31,175, 20190802134748
+157790.0,4.0,400.0,10.0,2,398,2,1, 20190802153434
+117670.0,4.0,400.0,30.0,1,0,0,1, 20190802171404
+53930.0,4.0,400.0,70.0,25,0,27,196, 20190805121522
 '''
 dtm = [[float(n) for n in ln.split(',') if len(n) > 0] for ln in dt2.split('\n') if len(ln) > 0]
 dtm = np.array(dtm)
@@ -97,11 +100,21 @@ plt.ylabel('Aborts')
 plt.title("Concurrency 400, 400m per run")
 plt.scatter(dtm.transpose()[3], dtm.transpose()[4])
 #%%
-plt.xlabel('Post Execute Time (Seconds)')
-plt.ylabel('Aborts')
+plt.ylabel('Post Execute Time (Seconds)')
+plt.xlabel('Aborts')
 plt.scatter(dtm.transpose()[4], dtm.transpose()[0])
 
 #%%
+plt.xlabel('Latency')
+plt.ylabel('Jobs With Shadow Errors')
+plt.scatter(dtm.transpose()[3], dtm.transpose()[7])
 
+#%%
+plt.xlabel('Latency')
+plt.ylabel('Jobs With Shadow Errors (Via Conlog)')
+plt.scatter(dtm.transpose()[3], dtm.transpose()[6])
+
+#%%
+plt.scatter(dtm.transpose()[3], dtm.transpose()[4]/dtm.transpose()[6])
 
 #%%
