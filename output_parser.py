@@ -2,6 +2,14 @@
 import sys 
 import os 
 
+def get_conlog(path):
+    path = path.rstrip('/') + '/'
+    possible = os.listdir(path)
+    match_test = lambda n: n.startswith('con_') and n.endswith('_run_0.log')
+    valid = [n for n in possible if match_test(n)]
+    return path + valid[0]
+
+
 def parse_params(path):
     outpt = {}
     fh = open(path + '/parameters.cfg', 'r')
@@ -31,19 +39,60 @@ def parse_params(path):
             outpt[k] = v 
     return outpt 
 
-def parse_grafana(path):
+def parse_grafana(path, only_term = True):
     outpt = {
-        'raw' : []
+        'raw' : [],
+        'post_final_term' : [],
+        'pre_first_submit' : 0, 
     }
+    conlog_path = get_conlog(path)
+    cfh = open(conlog_path, 'r')
+    cfd = cfh.read()
+    import datagen
+    conlog_data = datagen.parse_conlog(cfd)
+    final_term = None
+    first_submit = None
+    termed = 0
+    for evt in conlog_data:
+        if evt['MyType'] == 'JobTerminatedEvent':
+            final_term = max(final_term, evt['unixtime']) if final_term is not None else evt['unixtime']
+            termed += 1
+        elif evt['MyType'] == 'SubmitEvent':
+            first_submit = min(first_submit, evt['unixtime']) if first_submit is not None else evt['unixtime']
+    for evt in conlog_data:
+        if evt['MyType'] == 'JobAbortedEvent':
+            pass
+            #print('ABT! Time: ' + str(evt['unixtime'] - final_term))
+    first_submit *= 1000
+    final_term *= 1000
+
     fh = open(path + '/pull_grafana_out.txt', 'r')
     fd = fh.read().split('\n')
     for ln in fd: 
         if len(ln.strip()) == 0:
             continue
         ts, accum = ln.strip('[]\n ').split(', ')
+        ts = float(ts)
+
         outpt['raw'].append((float(ts), float(accum)))
+        if float(ts) < first_submit:
+            outpt['pre_first_submit'] += 1
+        elif float(ts) > final_term:
+            mapper = lambda t,a: (t,a)
+            outpt['post_final_term'].append(mapper((float(ts) - final_term)/1000.0, float(accum) - outpt['raw'][0][1]))
+    #print('\n\nPre:  => ' + str(outpt['pre_first_submit']))
+    #print('Base: => ' + str(outpt['raw'][0][1]))
+    #print('Post(' + str(termed) +'): => ' + str(outpt['post_final_term']) + '\n\n')
+
     outpt['raw'].sort(key = lambda itm: itm[0])
-    if len(outpt['raw']) >= 2:
+    outpt['termed'] = outpt['raw'][-1][1] - outpt['raw'][0][1]
+    outpt['notermed'] = [dt for dt in outpt['raw'] if dt[0] < (final_term + 120.0 * 1000.0)]
+    outpt['timed_notermed'] = outpt['notermed'][-1][1] - outpt['notermed'][0][1]
+    #print('NO TERM: ' + str(outpt['timed_notermed']) + '   |   TERMED: ' + str(outpt['termed']))
+    if len(outpt['raw']) > 2:
+        outpt['time'] = outpt['timed_notermed']
+        #raise RuntimeError("TOO MUCH OUTPUT: {}".format(len(outpt['raw'])))
+    elif len(outpt['raw']) == 2:
         outpt['time'] = outpt['raw'][-1][1] - outpt['raw'][0][1]
     else: 
         outpt['time'] = -1
@@ -62,7 +111,7 @@ def parse_latency(path):
     }
 
 def parse_aborts(path):
-    filename = path.rstrip('/') + '/' + 'con_400_run_0.log'
+    filename = get_conlog(path)
     fh = open(filename, 'r')
     fd = fh.read()
     import datagen
@@ -82,13 +131,15 @@ def parse_aborts(path):
 
 def parse_fails(path):
     filename = path.rstrip('/') + '/' + 'jobfails.csv'
+    if not os.path.isfile(filename):
+        return []
     fh = open(filename, 'r')
     fd = fh.read()
     fl = fd.splitlines()
     return [j for j in fl if len(j.strip()) > 0]
 
 def parse_conlog_shadow_exceptions(path):
-    filename = path.rstrip('/') + '/' + 'con_400_run_0.log'
+    filename = get_conlog(path)
     fh = open(filename, 'r')
     fd = fh.read()
 
@@ -116,7 +167,13 @@ def parse_conlog_shadow_exceptions(path):
     return conlog_data
 
 def parse_shadow_exceptions(path):
-    conlog = path.rstrip('/') + '/' + 'con_400_run_0.log'
+    debug = True
+    if debug:
+        return {
+            'jwe' : -1,
+            'raw' : {},
+        }
+    conlog = get_conlog(path)
     conlog_fh = open(conlog, 'r')
     conlog_fd = conlog_fh.read().splitlines()
     valid_jobs = [ln.split(' ')[1][1:-5] for ln in conlog_fd if 'submitted' in ln]
@@ -129,7 +186,8 @@ def parse_shadow_exceptions(path):
     for ln in shadow_fd:
         jid = ""
         for cur_job in valid_jobs:
-            shadow_form = "({}.{})".format(*[int(p) for p in cur_job.split('.')])
+            cur_clust, cur_proc = cur_job.split('.')
+            shadow_form = "(" + str(int(cur_clust)) + '.' + str(int(cur_proc)) + ')'
             if shadow_form in ln: 
                 jid = cur_job
                 break 

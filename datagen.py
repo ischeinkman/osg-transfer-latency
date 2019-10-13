@@ -170,6 +170,8 @@ def parse_conlog(raw_data):
     return retval
 
 def parse_conlog_timestamp(ts_raw):
+    if '.' in ts_raw :
+        ts_raw = ts_raw.split('.')[0]
     fmt = '%Y-%m-%dT%H:%M:%S'
     return time.strptime(ts_raw, fmt)
 
